@@ -7,13 +7,13 @@
 With `uv`:
 
 ```bash
-uv add git+https://github.com/<your-org>/labelohlcv.git
+uv add git+https://github.com/tempusoneps/labelohlcv.git
 ```
 
 Or with `uv pip`:
 
 ```bash
-uv pip install git+https://github.com/<your-org>/labelohlcv.git
+uv pip install git+https://github.com/tempusoneps/labelohlcv.git
 ```
 
 ## Local development

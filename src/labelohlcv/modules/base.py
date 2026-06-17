@@ -1,36 +1,14 @@
 from __future__ import annotations
 
-import csv
-import json
 from abc import ABC, abstractmethod
 from argparse import Namespace
 from pathlib import Path
-from dataclasses import asdict, dataclass, is_dataclass
-from typing import Any, Callable, Iterable, Sequence
+from typing import Sequence
 
-Label = str
+import pandas as pd
 
-
-@dataclass(frozen=True, slots=True)
-class Candle:
-    """Simple OHLCV candle."""
-
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float = 0.0
-
-
-@dataclass(frozen=True, slots=True)
-class LabelResult:
-    """A candle with its assigned label."""
-
-    candle: Candle
-    label: Label
-
-
-DEFAULT_CSV_HEADERS = ("Open", "High", "Low", "Close", "Volume")
+OHLCV_COLUMNS = ("Open", "High", "Low", "Close", "Volume")
+DEFAULT_CSV_HEADERS = OHLCV_COLUMNS
 
 
 def validate_input_file(path: Path) -> None:
@@ -40,81 +18,72 @@ def validate_input_file(path: Path) -> None:
         raise ValueError(f"Input path is not a file: {path}")
 
 
-def load_candles(
+def load_dataframe(
     path: Path,
     *,
     required_headers: Sequence[str] = DEFAULT_CSV_HEADERS,
-) -> list[Candle]:
+    **kwargs,
+) -> pd.DataFrame:
     validate_input_file(path)
-
-    candles: list[Candle] = []
-    with path.open(newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        missing = set(required_headers) - set(reader.fieldnames or [])
-        if missing:
-            missing_fields = ", ".join(sorted(missing))
-            raise ValueError(f"CSV header is missing required fields: {missing_fields}")
-
-        for row in reader:
-            if not row:
-                continue
-            if not any((value or "").strip() for value in row.values()):
-                continue
-
-            candles.append(
-                Candle(
-                    open=float(row["Open"]),
-                    high=float(row["High"]),
-                    low=float(row["Low"]),
-                    close=float(row["Close"]),
-                    volume=float(row.get("Volume") or 0.0),
-                )
-            )
-    return candles
+    df = pd.read_csv(path, **kwargs)
+    all_cols = set(df.columns) | ({df.index.name} if df.index.name else set())
+    missing = set(required_headers) - all_cols
+    if missing:
+        raise ValueError(f"CSV header is missing required fields: {', '.join(sorted(missing))}")
+    return df
 
 
-def label_data(candles: Iterable[Candle], labeler: Callable[..., Any], **kwargs: Any) -> Any:
-    return labeler(candles, **kwargs)
+def save_csv(df: pd.DataFrame, path: Path) -> None:
+    df.to_csv(path, index=False)
 
 
-def print_output(data: Any) -> None:
-    print(json.dumps(_to_jsonable(data), indent=2, ensure_ascii=False))
+def print_tail(df: pd.DataFrame, n: int = 20) -> None:
+    print(df.tail(n).to_string())
 
 
-def save_output(data: Any, path: Path) -> None:
-    path.write_text(json.dumps(_to_jsonable(data), indent=2, ensure_ascii=False), encoding="utf-8")
+class LabelPipeline(ABC):
+    """Base class for OHLCV labeling pipelines.
 
-
-def _to_jsonable(value: Any) -> Any:
-    if is_dataclass(value):
-        return {key: _to_jsonable(item) for key, item in asdict(value).items()}
-    if isinstance(value, dict):
-        return {key: _to_jsonable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_to_jsonable(item) for item in value]
-    if isinstance(value, Path):
-        return str(value)
-    return value
-
-
-class LabelModule(ABC):
-    """Base class for labeling modules."""
+    Subclasses must implement `label()`. The other steps (`load`, `validate`,
+    `output`) have sensible defaults but can be overridden per-module.
+    """
 
     @classmethod
     def configure_parser(cls, parser):
         return parser
 
-    def run(self, args: Namespace) -> int:
-        validate_input_file(args.input)
-        candles = load_candles(args.input)
-        results = self.label(candles, args)
-        print_output(results)
+    # --- Pipeline entry point ---
 
-        output = getattr(args, "output", None)
-        if output:
-            save_output(results, output)
+    def run(self, args: Namespace) -> int:
+        df = self.load(args)
+        df = self.validate(df)
+        df = self.label(df, args)
+        self.output(df, args)
         return 0
 
+    # --- Steps (override as needed) ---
+
+    def load(self, args: Namespace) -> pd.DataFrame:
+        return load_dataframe(args.input)
+
+    def validate(self, df: pd.DataFrame) -> pd.DataFrame:
+        for col in OHLCV_COLUMNS:
+            if not pd.api.types.is_numeric_dtype(df[col]):
+                raise ValueError(f"Column '{col}' must be numeric, got {df[col].dtype}")
+        nan_cols = [col for col in OHLCV_COLUMNS if df[col].isna().any()]
+        if nan_cols:
+            raise ValueError(f"NaN values found in columns: {', '.join(nan_cols)}")
+        if (df["Open"] == 0).any():
+            raise ValueError("Column 'Open' must not contain zero values")
+        return df
+
     @abstractmethod
-    def label(self, candles: Iterable[Candle], args: Namespace) -> Any:
+    def label(self, df: pd.DataFrame, args: Namespace) -> pd.DataFrame:
         raise NotImplementedError
+
+    def output(self, df: pd.DataFrame, args: Namespace) -> None:
+        path = getattr(args, "output", None)
+        if path:
+            save_csv(df, path)
+        else:
+            print_tail(df)

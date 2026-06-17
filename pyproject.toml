@@ -31,3 +31,8 @@ dependencies = [
 [project.scripts]
 labelohlcv = "labelohlcv.cli:main"
 
+[dependency-groups]
+dev = [
+    "pytest>=9.1.0",
+]
+
