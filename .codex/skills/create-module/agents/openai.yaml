@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Module"
+  short_description: "Scaffold labelohlcv labeling modules"
+  default_prompt: "Use $create-module to add a new labelohlcv module with tests."

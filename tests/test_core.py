@@ -1,5 +1,6 @@
 import io
 import json
+from argparse import ArgumentParser
 from pathlib import Path
 from unittest.mock import patch
 
@@ -177,3 +178,86 @@ def test_load_module_class_returns_module():
     module_class = load_module_class("vn30f1m")
 
     assert module_class.__name__ == "Module"
+
+
+# --- codex label ---
+
+def _make_codex_df():
+    return pd.DataFrame(
+        {
+            "Date": pd.to_datetime(
+                [
+                    "2024-01-01 09:00",
+                    "2024-01-01 09:05",
+                    "2024-01-01 09:10",
+                    "2024-01-01 09:15",
+                ]
+            ),
+            "Open": [100.0, 100.5, 102.0, 103.0],
+            "High": [100.5, 102.0, 103.5, 104.0],
+            "Low": [99.5, 100.2, 101.8, 102.7],
+            "Close": [100.0, 101.0, 103.0, 103.5],
+            "Volume": [1000.0, 1100.0, 1200.0, 900.0],
+        }
+    )
+
+
+def test_codex_module_is_pipeline():
+    assert issubclass(load_module_class("codex"), LabelPipeline)
+
+
+def test_codex_parser_accepts_label_options():
+    from labelohlcv.modules.codex import Module
+
+    parser = ArgumentParser()
+    Module.configure_parser(parser)
+    args = parser.parse_args(
+        [
+            "--horizon",
+            "2",
+            "--threshold-pct",
+            "0.01",
+            "--prefix",
+            "test",
+            "--allow-cross-session",
+        ]
+    )
+
+    assert args.horizon == 2
+    assert args.threshold_pct == 0.01
+    assert args.prefix == "test"
+    assert args.allow_cross_session is True
+
+
+def test_codex_label_adds_targets_without_mutating_input():
+    from labelohlcv.modules.codex import Module
+
+    df = _make_codex_df()
+    original_columns = list(df.columns)
+    args = type(
+        "Args",
+        (),
+        {
+            "horizon": 2,
+            "threshold_pct": 0.01,
+            "take_profit_pct": None,
+            "stop_loss_pct": None,
+            "prefix": "test",
+            "allow_cross_session": False,
+        },
+    )()
+
+    result = Module().label(df, args)
+
+    assert list(df.columns) == original_columns
+    assert result.loc[0, "test_label"] == "Bullish"
+    assert result.loc[0, "test_target"] == 1
+    assert result.loc[0, "test_entry_signal"] == "Long"
+    assert bool(result.loc[0, "test_future_complete"]) is True
+    assert result.loc[0, "test_long_outcome"] == "tp"
+    assert result.loc[2, "test_label"] == "Unknown"
+    assert "allow_entry" in result.columns
+    assert "Date" in result.columns
+    assert "Open" not in result.columns
+    assert "test_range" not in result.columns
+    assert "test_return_1" not in result.columns
