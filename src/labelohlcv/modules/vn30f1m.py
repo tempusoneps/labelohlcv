@@ -157,4 +157,9 @@ class Module(LabelPipeline):
         result = do_label_data(df)
         if result is None:
             raise ValueError("Rule not found — cannot label data")
-        return result
+        return (
+            result
+            .drop(columns=['Open', 'High', 'Low', 'Close', 'Volume'])
+            .rename_axis('Date')
+            .reset_index()
+        )
