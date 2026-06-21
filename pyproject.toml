@@ -1,7 +1,6 @@
 [build-system]
-requires = []
-build-backend = "build_backend"
-backend-path = ["."]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "labelohlcv"
@@ -9,7 +8,7 @@ version = "0.1.0"
 description = "Utilities for labeling OHLCV market data."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
   { name = "labelohlcv contributors" }
 ]
@@ -17,7 +16,6 @@ keywords = ["ohlcv", "trading", "data", "labeling", "quant"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -37,3 +35,8 @@ dev = [
     "pytest>=9.1.0",
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+labelohlcv = ["modules/*.md"]
