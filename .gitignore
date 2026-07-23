@@ -6,3 +6,4 @@ dist/
 build/
 *.egg-info/
 *.csv
+close_position_rules.json

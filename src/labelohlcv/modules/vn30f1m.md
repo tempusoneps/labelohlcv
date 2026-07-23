@@ -6,11 +6,12 @@ Dán nhãn dữ liệu OHLCV cho hợp đồng tương lai **VN30F1M** (hợp đ
 
 ## Nguồn quy tắc
 
-Quy tắc giao dịch được tải động từ remote:
+Quy tắc giao dịch được tải động từ remote và tự động lưu cache trực tiếp trong thư mục module project (`close_position_rules.json`):
 
 ```
 https://raw.githubusercontent.com/tempusoneps/trading-rules/refs/heads/main/VN30F1M/close_position_rules.json
 ```
+*(Nếu không có mạng hoặc request lỗi, hệ thống sẽ tự động sử dụng file cache local hoặc rule fallback)*
 
 Rule được sử dụng: **`no-overnight-sl033-tp132-tsl035-fc1425`**
 

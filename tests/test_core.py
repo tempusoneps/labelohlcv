@@ -20,7 +20,7 @@ FAKE_RULES = {
 }
 
 
-def _fake_urlopen(url):
+def _fake_urlopen(url, *args, **kwargs):
     data = json.dumps(FAKE_RULES).encode("utf-8")
     return io.BytesIO(data)
 
@@ -261,3 +261,49 @@ def test_codex_label_adds_targets_without_mutating_input():
     assert "Open" not in result.columns
     assert "test_range" not in result.columns
     assert "test_return_1" not in result.columns
+
+
+# --- vn30f1m rule caching tests ---
+
+def test_load_rules_creates_cache(tmp_path: Path):
+    from labelohlcv.modules.vn30f1m import _load_rules
+    cache_file = tmp_path / "cache.json"
+
+    with patch("labelohlcv.modules.vn30f1m.CACHE_FILE", cache_file), \
+         patch("labelohlcv.modules.vn30f1m.CACHE_DIR", tmp_path), \
+         patch("labelohlcv.modules.vn30f1m.urlopen", _fake_urlopen):
+        rules = _load_rules()
+
+    assert rules == FAKE_RULES
+    assert cache_file.exists()
+    assert json.loads(cache_file.read_text(encoding="utf-8")) == FAKE_RULES
+
+
+def test_load_rules_uses_cache_on_network_error(tmp_path: Path):
+    from labelohlcv.modules.vn30f1m import _load_rules
+    cache_file = tmp_path / "cache.json"
+    cache_file.write_text(json.dumps(FAKE_RULES), encoding="utf-8")
+
+    def _error_urlopen(url, timeout=5):
+        raise OSError("Network offline")
+
+    with patch("labelohlcv.modules.vn30f1m.CACHE_FILE", cache_file), \
+         patch("labelohlcv.modules.vn30f1m.urlopen", _error_urlopen):
+        rules = _load_rules()
+
+    assert rules == FAKE_RULES
+
+
+def test_load_rules_uses_fallback_when_offline_and_no_cache(tmp_path: Path):
+    from labelohlcv.modules.vn30f1m import _load_rules, DEFAULT_FALLBACK_RULES
+    cache_file = tmp_path / "nonexistent.json"
+
+    def _error_urlopen(url, timeout=5):
+        raise OSError("Network offline")
+
+    with patch("labelohlcv.modules.vn30f1m.CACHE_FILE", cache_file), \
+         patch("labelohlcv.modules.vn30f1m.urlopen", _error_urlopen):
+        rules = _load_rules()
+
+    assert rules == DEFAULT_FALLBACK_RULES
+

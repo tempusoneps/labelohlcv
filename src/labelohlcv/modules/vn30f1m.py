@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from argparse import Namespace
+from pathlib import Path
 from urllib.request import urlopen
 
 import pandas as pd
@@ -10,8 +11,39 @@ from tqdm import tqdm
 from .base import LabelPipeline, load_dataframe
 
 RULE_URL = 'https://raw.githubusercontent.com/tempusoneps/trading-rules/refs/heads/main/VN30F1M/close_position_rules.json'
+CACHE_DIR = Path(__file__).parent
+CACHE_FILE = CACHE_DIR / "close_position_rules.json"
+
+DEFAULT_FALLBACK_RULES = {
+    "rules": [{
+        "id": "no-overnight-sl033-tp132-tsl035-fc1425",
+        "risk_management": {
+            "stop_loss": {"value": 0.33},
+        }
+    }]
+}
 
 _L, _H = 0.3, 0.7
+
+
+def _load_rules(url: str = RULE_URL) -> dict:
+    try:
+        with urlopen(url, timeout=5) as response:
+            data = response.read().decode('utf-8')
+            rules = json.loads(data)
+            try:
+                CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                CACHE_FILE.write_text(json.dumps(rules, ensure_ascii=False, indent=2), encoding='utf-8')
+            except Exception:
+                pass
+            return rules
+    except Exception:
+        if CACHE_FILE.exists():
+            try:
+                return json.loads(CACHE_FILE.read_text(encoding='utf-8'))
+            except Exception:
+                pass
+        return DEFAULT_FALLBACK_RULES
 
 
 def _day_shape(group: pd.DataFrame, narrow_threshold: float) -> str:
@@ -48,10 +80,9 @@ def _day_shape(group: pd.DataFrame, narrow_threshold: float) -> str:
 
 
 def do_label_data(df: pd.DataFrame) -> pd.DataFrame | None:
-    with urlopen(RULE_URL) as response:
-        rules = json.loads(response.read().decode('utf-8'))
+    rules = _load_rules()
     rule_id = "no-overnight-sl033-tp132-tsl035-fc1425"
-    rule = next((r for r in rules["rules"] if r["id"] == rule_id), None)
+    rule = next((r for r in rules.get("rules", []) if r["id"] == rule_id), None)
     if not rule:
         return None
     label_data = df.copy()
