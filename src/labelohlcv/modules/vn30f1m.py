@@ -86,6 +86,8 @@ def do_label_data(df: pd.DataFrame) -> pd.DataFrame | None:
     if not rule:
         return None
     label_data = df.copy()
+    entry_filter_list = []
+    direction_filter_list = []
     new_entry_allowed = []
     remain_session_volatility = []
     remain_session_net_move = []
@@ -102,6 +104,8 @@ def do_label_data(df: pd.DataFrame) -> pd.DataFrame | None:
         current_time = row.name
         data_to_end_day = label_data[(label_data.index > current_time) & (label_data.index < current_date + ' 14:30:00')]
         if not len(data_to_end_day):
+            entry_filter_list.append("")
+            direction_filter_list.append("")
             new_entry_allowed.append("")
             remain_session_volatility.append(None)
             remain_session_net_move.append(None)
@@ -124,14 +128,33 @@ def do_label_data(df: pd.DataFrame) -> pd.DataFrame | None:
             shortable = False
         if low_min <= long_sl:
             longable = False
-        if longable and shortable:
-            new_entry_allowed.append('No - Sideway')
-        elif longable:
-            new_entry_allowed.append('Yes - Buy')
-        elif shortable:
-            new_entry_allowed.append('Yes - Sell')
+
+        # Compute entry_filter and direction_filter
+        if longable and not shortable:
+            ef = "Yes"
+            df_val = "Long"
+        elif shortable and not longable:
+            ef = "Yes"
+            df_val = "Short"
         else:
-            new_entry_allowed.append("No - None")
+            ef = "No"
+            df_val = "None"
+
+        entry_filter_list.append(ef)
+        direction_filter_list.append(df_val)
+
+        # allow_entry as combination of entry_filter and direction_filter
+        if ef == "Yes":
+            if df_val == "Long":
+                new_entry_allowed.append('Yes - Buy')
+            elif df_val == "Short":
+                new_entry_allowed.append('Yes - Sell')
+        else:
+            if longable and shortable:
+                new_entry_allowed.append('No - Sideway')
+            else:
+                new_entry_allowed.append("No - None")
+
         remain_session_volatility.append(high_max - low_min)
         remain_session_net_move.append(high_max + low_min - 2 * entry_price)
         long_mae = (entry_price - low_min) / entry_price * 100
@@ -147,6 +170,8 @@ def do_label_data(df: pd.DataFrame) -> pd.DataFrame | None:
         session_close = data_to_end_day['Close'].iloc[-1]
         eod_return_long_list.append((session_close - entry_price) / entry_price * 100)
         eod_return_short_list.append((entry_price - session_close) / entry_price * 100)
+    label_data['entry_filter'] = entry_filter_list
+    label_data['direction_filter'] = direction_filter_list
     label_data['allow_entry'] = new_entry_allowed
     label_data['remain_session_volatility'] = remain_session_volatility
     label_data['remain_session_net_move'] = remain_session_net_move
