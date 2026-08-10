@@ -202,6 +202,11 @@ def do_label_data(df: pd.DataFrame) -> pd.DataFrame | None:
     )
     label_data['price_shape'] = [shape_by_date[d] for d in date_keys]
 
+    roll_high_10 = label_data['High'].rolling(window=21, center=True, min_periods=1).max()
+    roll_low_10 = label_data['Low'].rolling(window=21, center=True, min_periods=1).min()
+    label_data['is_peak_10'] = label_data['High'] == roll_high_10
+    label_data['is_valley_10'] = label_data['Low'] == roll_low_10
+
     return label_data
 
 

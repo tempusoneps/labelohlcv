@@ -141,6 +141,40 @@ def test_vn30f1m_label_produces_allow_entry_column():
     assert "allow_entry" in result.columns
 
 
+def test_vn30f1m_label_produces_peak_and_valley_10_columns():
+    from labelohlcv.modules.vn30f1m import Module
+
+    highs = [100.0] * 25
+    lows = [90.0] * 25
+    highs[10] = 150.0
+    lows[15] = 50.0
+
+    dates = pd.date_range("2024-01-01 09:00", periods=25, freq="5min")
+    df = pd.DataFrame(
+        {
+            "Open": [100.0] * 25,
+            "High": highs,
+            "Low": lows,
+            "Close": [100.0] * 25,
+            "Volume": [1000.0] * 25,
+        },
+        index=dates,
+    )
+    args = type("Args", (), {})()
+
+    with patch("labelohlcv.modules.vn30f1m.urlopen", _fake_urlopen):
+        result = Module().label(df, args)
+
+    assert "is_peak_10" in result.columns
+    assert "is_valley_10" in result.columns
+
+    assert bool(result.loc[10, "is_peak_10"]) is True
+    assert bool(result.loc[9, "is_peak_10"]) is False
+    assert bool(result.loc[15, "is_valley_10"]) is True
+    assert bool(result.loc[14, "is_valley_10"]) is False
+
+
+
 def test_vn30f1m_does_not_mutate_input():
     from labelohlcv.modules.vn30f1m import Module
 

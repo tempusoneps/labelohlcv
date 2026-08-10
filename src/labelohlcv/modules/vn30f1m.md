@@ -158,6 +158,12 @@ Ngưỡng `narrow_range`: `price_range < median(price_range toàn dataset) × 0.
 | `two_sided_neutral` | any | mid | mid | Giằng co, đóng cửa giữa range |
 | `narrow_range` | — | — | — | Biên độ ngày quá hẹp (< 30% median) |
 
+#### `is_peak_10` / `is_valley_10`
+
+Xác định nến là đỉnh (Peak) hoặc đáy (Valley) cục bộ trong bán kính 10 nến trước và 10 nến sau (cửa sổ 21 nến cross-session):
+- `is_peak_10`: `True` nếu `High == max(High trong cửa sổ 21 nến centered)`, ngược lại `False`.
+- `is_valley_10`: `True` nếu `Low == min(Low trong cửa sổ 21 nến centered)`, ngược lại `False`.
+
 ---
 
 ## Sơ đồ tổng quan
